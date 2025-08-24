@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 视频播放平台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>精选视频</h1>
+</div>
+
+<div class="video-grid">
+    {% for video in videos.items %}
+    <div class="video-card">
+        <a href="{{ url_for('video_detail', video_id=video.id) }}" class="video-link">
+            <div class="video-thumbnail">
+                {% if video.thumbnail_url %}
+                    <img src="{{ video.thumbnail_url }}" alt="{{ video.title }}" loading="lazy">
+                {% else %}
+                    <div class="video-placeholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814l-3.5-2.5z"/>
+                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>
+                        </svg>
+                    </div>
+                {% endif %}
+                <div class="video-duration">
+                    <span class="view-count">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+                            <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+                        </svg>
+                        {{ video.view_count }}
+                    </span>
+                </div>
+            </div>
+            <div class="video-info">
+                <h3 class="video-title">{{ video.title }}</h3>
+                {% if video.description %}
+                <p class="video-description">{{ video.description|truncate(100) }}</p>
+                {% endif %}
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+{% if videos.pages > 1 %}
+<div class="pagination">
+    {% if videos.has_prev %}
+        <a href="{{ url_for('index', page=videos.prev_num) }}" class="page-link">上一页</a>
+    {% endif %}
+    
+    {% for page_num in videos.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+        {% if page_num %}
+            {% if page_num != videos.page %}
+                <a href="{{ url_for('index', page=page_num) }}" class="page-link">{{ page_num }}</a>
+            {% else %}
+                <span class="page-link active">{{ page_num }}</span>
+            {% endif %}
+        {% else %}
+            <span class="page-ellipsis">...</span>
+        {% endif %}
+    {% endfor %}
+    
+    {% if videos.has_next %}
+        <a href="{{ url_for('index', page=videos.next_num) }}" class="page-link">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

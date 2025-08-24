@@ -1,0 +1,145 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}评论管理{% endblock %}
+
+{% block content %}
+<div class="comments-management">
+    <div class="page-actions">
+        <div class="filter-tabs">
+            <a href="{{ url_for('admin_comments', filter='pending') }}" class="tab {% if filter_type == 'pending' %}active{% endif %}">待审核</a>
+            <a href="{{ url_for('admin_comments', filter='approved') }}" class="tab {% if filter_type == 'approved' %}active{% endif %}">已通过</a>
+            <a href="{{ url_for('admin_comments', filter='all') }}" class="tab {% if filter_type == 'all' %}active{% endif %}">全部</a>
+        </div>
+    </div>
+    
+    <div class="data-table">
+        <table>
+            <thead>
+                <tr>
+                    <th width="50">ID</th>
+                    <th width="150">视频</th>
+                    <th width="100">姓名</th>
+                    <th width="120">手机号</th>
+                    <th>评论内容</th>
+                    <th width="80">状态</th>
+                    <th width="150">提交时间</th>
+                    <th width="150">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comment in comments.items %}
+                <tr>
+                    <td>{{ comment.id }}</td>
+                    <td>
+                        <a href="{{ url_for('video_detail', video_id=comment.video_id) }}" target="_blank" class="link">
+                            {{ comment.video.title|truncate(20) }}
+                        </a>
+                    </td>
+                    <td>{{ comment.name }}</td>
+                    <td>{{ comment.phone[:3] }}****{{ comment.phone[-4:] }}</td>
+                    <td>
+                        <div class="comment-content-cell">{{ comment.content }}</div>
+                    </td>
+                    <td>
+                        {% if comment.is_approved %}
+                            <span class="badge badge-success">已通过</span>
+                        {% else %}
+                            <span class="badge badge-warning">待审核</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        {% if not comment.is_approved %}
+                            <form method="POST" action="{{ url_for('admin_approve_comment', comment_id=comment.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-success">通过</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin_reject_comment', comment_id=comment.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确定要拒绝并删除这条评论吗？')">拒绝</button>
+                            </form>
+                        {% else %}
+                            <form method="POST" action="{{ url_for('admin_reject_comment', comment_id=comment.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除这条评论吗？')">删除</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not comments.items %}
+                <tr>
+                    <td colspan="8" class="text-center">
+                        {% if filter_type == 'pending' %}
+                            暂无待审核的评论
+                        {% elif filter_type == 'approved' %}
+                            暂无已通过的评论
+                        {% else %}
+                            暂无评论
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if comments.pages > 1 %}
+    <div class="pagination">
+        {% if comments.has_prev %}
+            <a href="{{ url_for('admin_comments', page=comments.prev_num, filter=filter_type) }}" class="page-link">上一页</a>
+        {% endif %}
+        
+        {% for page_num in comments.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+            {% if page_num %}
+                {% if page_num != comments.page %}
+                    <a href="{{ url_for('admin_comments', page=page_num, filter=filter_type) }}" class="page-link">{{ page_num }}</a>
+                {% else %}
+                    <span class="page-link active">{{ page_num }}</span>
+                {% endif %}
+            {% else %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+        
+        {% if comments.has_next %}
+            <a href="{{ url_for('admin_comments', page=comments.next_num, filter=filter_type) }}" class="page-link">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.comment-content-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comment-content-cell:hover {
+    white-space: normal;
+    word-break: break-word;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.5em;
+    font-size: 0.875em;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+}
+
+.badge-success {
+    color: #fff;
+    background-color: #28a745;
+}
+
+.badge-warning {
+    color: #212529;
+    background-color: #ffc107;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,386 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}视频管理{% endblock %}
+
+{% block content %}
+<div class="videos-management">
+    <div class="page-actions">
+        <button class="btn btn-primary" onclick="showAddVideoModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+            添加新视频
+        </button>
+    </div>
+    
+    <div class="data-table">
+        <table>
+            <thead>
+                <tr>
+                    <th width="50">ID</th>
+                    <th width="80">排序</th>
+                    <th>标题</th>
+                    <th width="100">播放次数</th>
+                    <th width="150">创建时间</th>
+                    <th width="150">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for video in videos.items %}
+                <tr>
+                    <td>{{ video.id }}</td>
+                    <td>{{ video.order_index }}</td>
+                    <td>{{ video.title }}</td>
+                    <td>
+                        <span class="view-count-display" id="view-count-{{ video.id }}">{{ video.view_count }}</span>
+                        <button class="btn-icon" onclick="showQuickEditViewCount({{ video.id }}, {{ video.view_count }})" title="快速修改播放量">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                            </svg>
+                        </button>
+                    </td>
+                    <td>{{ video.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="showEditVideoModal({{ video.id }}, '{{ video.title }}', '{{ video.description or '' }}', '{{ video.video_url }}', '{{ video.thumbnail_url or '' }}', {{ video.order_index }}, {{ video.view_count }})">编辑</button>
+                        <form method="POST" action="{{ url_for('admin_delete_video', video_id=video.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除这个视频吗？')">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if videos.pages > 1 %}
+    <div class="pagination">
+        {% if videos.has_prev %}
+            <a href="{{ url_for('admin_videos', page=videos.prev_num) }}" class="page-link">上一页</a>
+        {% endif %}
+        
+        {% for page_num in videos.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+            {% if page_num %}
+                {% if page_num != videos.page %}
+                    <a href="{{ url_for('admin_videos', page=page_num) }}" class="page-link">{{ page_num }}</a>
+                {% else %}
+                    <span class="page-link active">{{ page_num }}</span>
+                {% endif %}
+            {% else %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+        
+        {% if videos.has_next %}
+            <a href="{{ url_for('admin_videos', page=videos.next_num) }}" class="page-link">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- 添加视频模态框 -->
+<div id="addVideoModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>添加新视频</h2>
+            <span class="close" onclick="closeModal('addVideoModal')">&times;</span>
+        </div>
+        <form method="POST" action="{{ url_for('admin_add_video') }}">
+            <div class="form-group">
+                <label for="add_title">视频标题 <span class="required">*</span></label>
+                <input type="text" id="add_title" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="add_video_url">视频URL (阿里云OSS) <span class="required">*</span></label>
+                <input type="url" id="add_video_url" name="video_url" required placeholder="https://example.oss-cn-hangzhou.aliyuncs.com/video.mp4">
+            </div>
+            <div class="form-group">
+                <label for="add_thumbnail_url">缩略图URL</label>
+                <input type="url" id="add_thumbnail_url" name="thumbnail_url" placeholder="https://example.oss-cn-hangzhou.aliyuncs.com/thumbnail.jpg">
+            </div>
+            <div class="form-group">
+                <label for="add_description">视频描述</label>
+                <textarea id="add_description" name="description" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="add_order_index">排序索引</label>
+                <input type="number" id="add_order_index" name="order_index" value="0" min="0">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">添加视频</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addVideoModal')">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 快速编辑播放量模态框 -->
+<div id="quickEditModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>修改播放量</h2>
+            <span class="close" onclick="closeModal('quickEditModal')">&times;</span>
+        </div>
+        <form id="quickEditForm" onsubmit="submitQuickEdit(event)">
+            <input type="hidden" id="quick_edit_video_id">
+            <div class="form-group">
+                <label for="quick_edit_view_count">播放次数</label>
+                <input type="number" id="quick_edit_view_count" min="0" required class="form-control">
+                <small class="form-text">当前播放量：<span id="current_view_count"></span></small>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+                    </svg>
+                    确认修改
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('quickEditModal')">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 编辑视频模态框 -->
+<div id="editVideoModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>编辑视频</h2>
+            <span class="close" onclick="closeModal('editVideoModal')">&times;</span>
+        </div>
+        <form id="editVideoForm" method="POST">
+            <div class="form-group">
+                <label for="edit_title">视频标题 <span class="required">*</span></label>
+                <input type="text" id="edit_title" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="edit_video_url">视频URL (阿里云OSS) <span class="required">*</span></label>
+                <input type="url" id="edit_video_url" name="video_url" required>
+            </div>
+            <div class="form-group">
+                <label for="edit_thumbnail_url">缩略图URL</label>
+                <input type="url" id="edit_thumbnail_url" name="thumbnail_url">
+            </div>
+            <div class="form-group">
+                <label for="edit_description">视频描述</label>
+                <textarea id="edit_description" name="description" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="edit_order_index">排序索引</label>
+                <input type="number" id="edit_order_index" name="order_index" min="0">
+            </div>
+            <div class="form-group">
+                <label for="edit_view_count">播放次数</label>
+                <input type="number" id="edit_view_count" name="view_count" min="0" placeholder="当前播放次数">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">更新视频</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editVideoModal')">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showAddVideoModal() {
+    document.getElementById('addVideoModal').style.display = 'block';
+}
+
+function showEditVideoModal(id, title, description, videoUrl, thumbnailUrl, orderIndex, viewCount) {
+    document.getElementById('editVideoForm').action = `/admin/video/${id}/edit`;
+    document.getElementById('edit_title').value = title;
+    document.getElementById('edit_description').value = description;
+    document.getElementById('edit_video_url').value = videoUrl;
+    document.getElementById('edit_thumbnail_url').value = thumbnailUrl;
+    document.getElementById('edit_order_index').value = orderIndex;
+    document.getElementById('edit_view_count').value = viewCount;
+    document.getElementById('editVideoModal').style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// 点击模态框外部关闭
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// 快速修改播放量
+function showQuickEditViewCount(videoId, currentCount) {
+    document.getElementById('quick_edit_video_id').value = videoId;
+    document.getElementById('current_view_count').textContent = currentCount;
+    document.getElementById('quick_edit_view_count').value = currentCount;
+    document.getElementById('quickEditModal').style.display = 'block';
+    
+    // 聚焦到输入框
+    setTimeout(() => {
+        document.getElementById('quick_edit_view_count').focus();
+        document.getElementById('quick_edit_view_count').select();
+    }, 100);
+}
+
+// 提交快速编辑
+function submitQuickEdit(event) {
+    event.preventDefault();
+    
+    const videoId = document.getElementById('quick_edit_video_id').value;
+    const newCount = document.getElementById('quick_edit_view_count').value;
+    
+    if (newCount !== '' && !isNaN(newCount) && parseInt(newCount) >= 0) {
+        // 使用AJAX提交，实现无刷新更新
+        const formData = new FormData();
+        formData.append('view_count', parseInt(newCount));
+        
+        fetch(`/admin/video/${videoId}/update-view-count`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // 更新页面上的显示
+                document.getElementById(`view-count-${videoId}`).textContent = newCount;
+                // 显示成功提示
+                showToast('播放量更新成功');
+                // 关闭模态框
+                closeModal('quickEditModal');
+            } else {
+                showToast('更新失败，请重试', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('更新失败，请重试', 'error');
+        });
+    }
+}
+
+// 显示提示消息
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 3000);
+}
+</script>
+
+<style>
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    margin-left: 8px;
+    color: var(--primary-color);
+    transition: all 0.3s;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    background-color: rgba(89, 86, 233, 0.1);
+    transform: scale(1.1);
+}
+
+.view-count-display {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* Toast提示样式 */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    background-color: var(--success-color);
+    color: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    font-weight: 500;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateX(100px);
+    transition: all 0.3s ease;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-error {
+    background-color: var(--danger-color);
+}
+
+.toast-warning {
+    background-color: var(--warning-color);
+}
+
+/* 表单样式 */
+.form-text {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(89, 86, 233, 0.1);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .btn-icon {
+        padding: 2px;
+        margin-left: 4px;
+    }
+    
+    .btn-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .toast {
+        right: 10px;
+        left: 10px;
+        transform: translateY(-100px);
+    }
+    
+    .toast.show {
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}
