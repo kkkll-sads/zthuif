@@ -69,6 +69,42 @@ prepare_dirs(){
   ok "目录已就绪"
 }
 
+create_init_script(){
+  info "创建数据库初始化脚本..."
+  mkdir -p "${PROJECT_DIR}/scripts"
+  cat >"${PROJECT_DIR}/scripts/init_db.py" <<'PY'
+import os
+from app import app
+from models import db, Admin
+
+def ensure_tables_and_admin():
+    with app.app_context():
+        # 确保数据表存在
+        db.create_all()
+
+        # 可选：根据环境变量创建默认管理员
+        username = os.getenv('ADMIN_USERNAME')
+        password = os.getenv('ADMIN_PASSWORD')
+        if username and password:
+            admin = Admin.query.filter_by(username=username).first()
+            if not admin:
+                admin = Admin(username=username, email=f"{username}@example.com")
+                admin.set_password(password)
+                db.session.add(admin)
+                db.session.commit()
+                print(f"[init_db] admin created: {username}")
+            else:
+                print(f"[init_db] admin exists: {username}")
+        else:
+            print("[init_db] ADMIN_USERNAME/ADMIN_PASSWORD not set; skip admin creation")
+
+if __name__ == '__main__':
+    ensure_tables_and_admin()
+PY
+  chown "${USER_NAME}:${GROUP_NAME}" "${PROJECT_DIR}/scripts/init_db.py"
+  ok "初始化脚本已创建: scripts/init_db.py"
+}
+
 create_systemd_services(){
   info "创建 systemd 服务文件..."
 
@@ -87,6 +123,9 @@ Environment=FLASK_HOST=127.0.0.1
 Environment=FLASK_PORT=${PORT_1}
 Environment=SECRET_KEY=${SECRET_1}
 Environment=DATABASE_URL=sqlite:///${DB_1_PATH}
+Environment=ADMIN_USERNAME=admin
+Environment=ADMIN_PASSWORD=UB8uGkrHTKdbeV#
+ExecStartPre=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/init_db.py
 ExecStart=${VENV_DIR}/bin/gunicorn -w 3 --threads 2 --timeout 120 \
   --bind 127.0.0.1:${PORT_1} app:app \
   --log-file /var/log/${SERVICE_1}/gunicorn.log --access-logfile /var/log/${SERVICE_1}/access.log
@@ -111,6 +150,9 @@ Environment=FLASK_HOST=127.0.0.1
 Environment=FLASK_PORT=${PORT_2}
 Environment=SECRET_KEY=${SECRET_2}
 Environment=DATABASE_URL=sqlite:///${DB_2_PATH}
+Environment=ADMIN_USERNAME=admin
+Environment=ADMIN_PASSWORD=UB8uGkrHTKdbeV#
+ExecStartPre=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/init_db.py
 ExecStart=${VENV_DIR}/bin/gunicorn -w 3 --threads 2 --timeout 120 \
   --bind 127.0.0.1:${PORT_2} app:app \
   --log-file /var/log/${SERVICE_2}/gunicorn.log --access-logfile /var/log/${SERVICE_2}/access.log
@@ -147,10 +189,10 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:${PORT_1};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 180;
     }
 }
@@ -165,10 +207,10 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:${PORT_2};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 180;
     }
 }
