@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from werkzeug.utils import secure_filename
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from datetime import datetime
@@ -19,6 +20,15 @@ login_manager.login_message = '请先登录'
 @login_manager.user_loader
 def load_user(user_id):
     return Admin.query.get(int(user_id))
+
+# 确保上传目录存在
+os.makedirs(app.config.get('UPLOAD_FOLDER', os.path.join(app.root_path, 'static', 'uploads')), exist_ok=True)
+
+def is_allowed_image(filename: str) -> bool:
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in app.config.get('ALLOWED_IMAGE_EXTENSIONS', set())
 
 # 前端路由
 @app.route('/')
@@ -138,12 +148,29 @@ def admin_add_video():
     description = request.form.get('description', '').strip()
     video_url = request.form.get('video_url', '').strip()
     thumbnail_url = request.form.get('thumbnail_url', '').strip()
-    order_index = request.form.get('order_index', 0, type=int)
+    thumbnail_file = request.files.get('thumbnail_file')
+    # 自动分配序号：取当前最大 order_index + 1
+    max_order = db.session.query(db.func.max(Video.order_index)).scalar() or 0
+    order_index = request.form.get('order_index', max_order + 1, type=int)
     
     if not title or not video_url:
         flash('标题和视频URL不能为空', 'error')
         return redirect(url_for('admin_videos'))
     
+    # 若上传了本地文件，优先保存本地并覆盖 thumbnail_url
+    if thumbnail_file and thumbnail_file.filename:
+        if not is_allowed_image(thumbnail_file.filename):
+            flash('封面格式不被支持', 'error')
+            return redirect(url_for('admin_videos'))
+        filename = secure_filename(thumbnail_file.filename)
+        save_dir = app.config.get('UPLOAD_FOLDER')
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, filename)
+        thumbnail_file.save(save_path)
+        # 构造可访问URL
+        rel_path = os.path.relpath(save_path, app.root_path)
+        thumbnail_url = url_for('static', filename=rel_path.replace('static'+os.sep, '').replace('static/', ''), _external=False)
+
     video = Video(
         title=title,
         description=description,
@@ -166,7 +193,20 @@ def admin_edit_video(video_id):
     video.title = request.form.get('title', video.title).strip()
     video.description = request.form.get('description', video.description).strip()
     video.video_url = request.form.get('video_url', video.video_url).strip()
-    video.thumbnail_url = request.form.get('thumbnail_url', video.thumbnail_url).strip()
+    new_thumbnail_url = request.form.get('thumbnail_url', video.thumbnail_url).strip()
+    thumbnail_file = request.files.get('thumbnail_file')
+    if thumbnail_file and thumbnail_file.filename:
+        if not is_allowed_image(thumbnail_file.filename):
+            flash('封面格式不被支持', 'error')
+            return redirect(url_for('admin_videos'))
+        filename = secure_filename(thumbnail_file.filename)
+        save_dir = app.config.get('UPLOAD_FOLDER')
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, filename)
+        thumbnail_file.save(save_path)
+        rel_path = os.path.relpath(save_path, app.root_path)
+        new_thumbnail_url = url_for('static', filename=rel_path.replace('static'+os.sep, '').replace('static/', ''), _external=False)
+    video.thumbnail_url = new_thumbnail_url
     video.order_index = request.form.get('order_index', video.order_index, type=int)
     
     # 处理播放量修改
@@ -240,6 +280,35 @@ def admin_reject_comment(comment_id):
     db.session.commit()
     flash('评论已拒绝并删除', 'success')
     return redirect(request.referrer or url_for('admin_comments'))
+
+@app.route('/admin/video/<int:video_id>/reorder', methods=['POST'])
+@login_required
+def admin_reorder_video(video_id):
+    """上移/下移视频排序"""
+    direction = request.form.get('direction', 'up')
+    current = Video.query.get_or_404(video_id)
+    if direction == 'up':
+        neighbor = Video.query.filter(Video.order_index < current.order_index).order_by(Video.order_index.desc()).first()
+    else:
+        neighbor = Video.query.filter(Video.order_index > current.order_index).order_by(Video.order_index.asc()).first()
+    if neighbor:
+        current.order_index, neighbor.order_index = neighbor.order_index, current.order_index
+        db.session.commit()
+        flash('排序已更新', 'success')
+    else:
+        flash('已到边界，无法继续移动', 'warning')
+    return redirect(url_for('admin_videos'))
+
+@app.route('/admin/videos/normalize', methods=['POST'])
+@login_required
+def admin_normalize_orders():
+    """一键规范化：按当前顺序重排为 1..N"""
+    videos = Video.query.order_by(Video.order_index.asc(), Video.created_at.desc()).all()
+    for idx, v in enumerate(videos, start=1):
+        v.order_index = idx
+    db.session.commit()
+    flash('已规范化排序', 'success')
+    return redirect(url_for('admin_videos'))
 
 @app.cli.command()
 def init_db():

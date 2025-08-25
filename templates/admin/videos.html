@@ -12,6 +12,9 @@
             </svg>
             添加新视频
         </button>
+        <form method="POST" action="{{ url_for('admin_normalize_orders') }}" style="display:inline;margin-left:8px;">
+            <button type="submit" class="btn btn-secondary">一键规范排序</button>
+        </form>
     </div>
     
     <div class="data-table">
@@ -30,7 +33,19 @@
                 {% for video in videos.items %}
                 <tr>
                     <td>{{ video.id }}</td>
-                    <td>{{ video.order_index }}</td>
+                    <td>
+                        {{ video.order_index }}
+                        <div style="display:inline-block; margin-left:8px;">
+                            <form method="POST" action="{{ url_for('admin_reorder_video', video_id=video.id) }}" style="display:inline;">
+                                <input type="hidden" name="direction" value="up">
+                                <button type="submit" class="btn btn-sm btn-secondary">上移</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin_reorder_video', video_id=video.id) }}" style="display:inline;">
+                                <input type="hidden" name="direction" value="down">
+                                <button type="submit" class="btn btn-sm btn-secondary">下移</button>
+                            </form>
+                        </div>
+                    </td>
                     <td>{{ video.title }}</td>
                     <td>
                         <span class="view-count-display" id="view-count-{{ video.id }}">{{ video.view_count }}</span>
@@ -86,7 +101,7 @@
             <h2>添加新视频</h2>
             <span class="close" onclick="closeModal('addVideoModal')">&times;</span>
         </div>
-        <form method="POST" action="{{ url_for('admin_add_video') }}">
+        <form method="POST" action="{{ url_for('admin_add_video') }}" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="add_title">视频标题 <span class="required">*</span></label>
                 <input type="text" id="add_title" name="title" required>
@@ -98,6 +113,10 @@
             <div class="form-group">
                 <label for="add_thumbnail_url">缩略图URL</label>
                 <input type="url" id="add_thumbnail_url" name="thumbnail_url" placeholder="https://example.oss-cn-hangzhou.aliyuncs.com/thumbnail.jpg">
+            </div>
+            <div class="form-group">
+                <label for="add_thumbnail_file">或上传封面图（本地）</label>
+                <input type="file" id="add_thumbnail_file" name="thumbnail_file" accept="image/*">
             </div>
             <div class="form-group">
                 <label for="add_description">视频描述</label>
@@ -149,7 +168,7 @@
             <h2>编辑视频</h2>
             <span class="close" onclick="closeModal('editVideoModal')">&times;</span>
         </div>
-        <form id="editVideoForm" method="POST">
+        <form id="editVideoForm" method="POST" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="edit_title">视频标题 <span class="required">*</span></label>
                 <input type="text" id="edit_title" name="title" required>
@@ -161,6 +180,10 @@
             <div class="form-group">
                 <label for="edit_thumbnail_url">缩略图URL</label>
                 <input type="url" id="edit_thumbnail_url" name="thumbnail_url">
+            </div>
+            <div class="form-group">
+                <label for="edit_thumbnail_file">或上传封面图（本地）</label>
+                <input type="file" id="edit_thumbnail_file" name="thumbnail_file" accept="image/*">
             </div>
             <div class="form-group">
                 <label for="edit_description">视频描述</label>
