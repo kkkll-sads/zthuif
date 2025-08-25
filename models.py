@@ -12,6 +12,7 @@ class Video(db.Model):
     description = db.Column(db.Text)
     video_url = db.Column(db.String(500), nullable=False)  # 阿里云OSS视频URL
     thumbnail_url = db.Column(db.String(500))  # 缩略图URL
+    vod_video_id = db.Column(db.String(128))  # 阿里云VOD视频ID（有则优先使用）
     view_count = db.Column(db.Integer, default=0)  # 播放次数
     order_index = db.Column(db.Integer, default=0)  # 排序索引
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -1,8 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.utils import secure_filename
+from urllib.parse import urlparse
+from alibabacloud_tea_openapi import models as open_api_models
+from alibabacloud_vod20170321.client import Client as VodClient
+from alibabacloud_vod20170321 import models as vod_models
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from datetime import datetime
+import os
 import os
 
 from models import db, Video, Comment, Admin
@@ -29,6 +34,48 @@ def is_allowed_image(filename: str) -> bool:
         return False
     ext = filename.rsplit('.', 1)[1].lower()
     return ext in app.config.get('ALLOWED_IMAGE_EXTENSIONS', set())
+
+def normalize_external_video_url(input_url: str) -> str:
+    """将外部 http(s)://immedias.lchffr.com/xxx 转换为同域 HTTPS 的 /media/xxx。
+    其它域名或已是 /media/ 前缀的不做处理。
+    """
+    if not input_url:
+        return input_url
+    if input_url.startswith('/media/'):
+        return input_url
+    try:
+        parsed = urlparse(input_url)
+        if parsed.netloc.lower() == 'immedias.lchffr.com':
+            # 去掉前导斜杠，拼为相对同域路径
+            path = parsed.path.lstrip('/')
+            # 保留查询串（如有）
+            if parsed.query:
+                return f"/media/{path}?{parsed.query}"
+            return f"/media/{path}"
+    except Exception:
+        pass
+    return input_url
+
+def vod_client():
+    config = open_api_models.Config(
+        access_key_id=os.getenv('ALIYUN_ACCESS_KEY_ID', ''),
+        access_key_secret=os.getenv('ALIYUN_ACCESS_KEY_SECRET', ''),
+        endpoint='vod.cn-shanghai.aliyuncs.com'
+    )
+    return VodClient(config)
+
+@app.route('/api/vod/playauth/<string:video_id>')
+def api_vod_playauth(video_id: str):
+    try:
+        client = vod_client()
+        req = vod_models.GetVideoPlayAuthRequest(video_id=video_id)
+        resp = client.get_video_play_auth(req)
+        return jsonify({
+            'videoId': video_id,
+            'playAuth': resp.body.play_auth
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # 前端路由
 @app.route('/')
@@ -171,11 +218,17 @@ def admin_add_video():
         rel_path = os.path.relpath(save_path, app.root_path)
         thumbnail_url = url_for('static', filename=rel_path.replace('static'+os.sep, '').replace('static/', ''), _external=False)
 
+    # 规范化视频地址（将 immedias.lchffr.com 转为 /media/ 前缀，避免混合内容）
+    video_url = normalize_external_video_url(video_url)
+
+    vod_video_id = request.form.get('vod_video_id', '').strip()
+
     video = Video(
         title=title,
         description=description,
         video_url=video_url,
         thumbnail_url=thumbnail_url,
+        vod_video_id=vod_video_id,
         order_index=order_index
     )
     db.session.add(video)
@@ -192,7 +245,8 @@ def admin_edit_video(video_id):
     
     video.title = request.form.get('title', video.title).strip()
     video.description = request.form.get('description', video.description).strip()
-    video.video_url = request.form.get('video_url', video.video_url).strip()
+    new_video_url = request.form.get('video_url', video.video_url).strip()
+    video.video_url = normalize_external_video_url(new_video_url)
     new_thumbnail_url = request.form.get('thumbnail_url', video.thumbnail_url).strip()
     thumbnail_file = request.files.get('thumbnail_file')
     if thumbnail_file and thumbnail_file.filename:
@@ -208,6 +262,7 @@ def admin_edit_video(video_id):
         new_thumbnail_url = url_for('static', filename=rel_path.replace('static'+os.sep, '').replace('static/', ''), _external=False)
     video.thumbnail_url = new_thumbnail_url
     video.order_index = request.form.get('order_index', video.order_index, type=int)
+    video.vod_video_id = request.form.get('vod_video_id', video.vod_video_id).strip()
     
     # 处理播放量修改
     view_count = request.form.get('view_count', type=int)

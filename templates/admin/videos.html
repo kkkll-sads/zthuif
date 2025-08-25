@@ -111,6 +111,10 @@
                 <input type="url" id="add_video_url" name="video_url" required placeholder="https://example.oss-cn-hangzhou.aliyuncs.com/video.mp4">
             </div>
             <div class="form-group">
+                <label for="add_vod_video_id">或填写阿里云VOD视频ID（有则优先VOD播放）</label>
+                <input type="text" id="add_vod_video_id" name="vod_video_id" placeholder="如：4d36e96c2f1b4d3b90d4b6ad...">
+            </div>
+            <div class="form-group">
                 <label for="add_thumbnail_url">缩略图URL</label>
                 <input type="url" id="add_thumbnail_url" name="thumbnail_url" placeholder="https://example.oss-cn-hangzhou.aliyuncs.com/thumbnail.jpg">
             </div>
@@ -176,6 +180,10 @@
             <div class="form-group">
                 <label for="edit_video_url">视频URL (阿里云OSS) <span class="required">*</span></label>
                 <input type="url" id="edit_video_url" name="video_url" required>
+            </div>
+            <div class="form-group">
+                <label for="edit_vod_video_id">阿里云VOD视频ID</label>
+                <input type="text" id="edit_vod_video_id" name="vod_video_id">
             </div>
             <div class="form-group">
                 <label for="edit_thumbnail_url">缩略图URL</label>

@@ -2,6 +2,39 @@
 
 一个基于Python Flask的视频播放应用，支持阿里云OSS视频播放、用户评论和后台管理功能。
 
+# 拉取最新代码（或已就位）
+cd /root/zthuif
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 确保数据库已初始化（仅第一次或结构变化时）
+# 任选其一：内联方式
+/root/zthuif/venv/bin/python - <<'PY'
+import os, sys
+sys.path.insert(0, '/root/zthuif')
+os.environ['DATABASE_URL']='sqlite:////root/zthuif/instance/video_app_jt.db'
+from app import app; from models import db
+with app.app_context(): db.create_all(); print('JT OK')
+PY
+/root/zthuif/venv/bin/python - <<'PY'
+import os, sys
+sys.path.insert(0, '/root/zthuif')
+os.environ['DATABASE_URL']='sqlite:////root/zthuif/instance/video_app_zjs.db'
+from app import app; from models import db
+with app.app_context(): db.create_all(); print('ZJS OK')
+PY
+
+# 重启服务
+sudo systemctl daemon-reload
+sudo systemctl restart pypo-jt pypo-zjs
+
+# 自检
+curl -I http://127.0.0.1:8001
+curl -I http://127.0.0.1:8002
+
+
+
+
 ## 功能特点
 
 ### 前端功能
